@@ -4,6 +4,7 @@ import dayjs from "dayjs";
 import { MongoClient } from "mongodb";
 import joi from "joi";
 import dotenv from "dotenv";
+import { get } from "http";
 
 dotenv.config();
 
@@ -28,7 +29,7 @@ try {
 
 const db = mongoClient.db("batepapouol");
 const participantsCollection = db.collection("participants");
-const messagesCollection = db.collection("messages")
+const messagesCollection = db.collection("messages");
 
 app.post("/participants", async (req, res) => {
   const { name } = req.body;
@@ -68,19 +69,25 @@ app.post("/participants", async (req, res) => {
   }
 });
 
+app.get("/participants", async (req, res) => {
+  try {
+    const getParticipants = await messagesCollection.find().toArray();
 
-app.get("/participants", (req, res) => {
-  const { name } = req.body;
+    if (!getParticipants) {
+      return [];
+    }
 
-  res.status(400).send("All fields are required!");
+    return res.status(201).send({ getParticipants });
+  } catch (err) {
+    console.err(err);
+    return res.status(500).send(err.message);
+  }
 });
 
 app.post("/messages", (req, res) => {
   const { name } = req.body;
 
-  // res.send()
 
-  res.status(400).send("All fields are required!");
 });
 
 app.get("/messages", (req, res) => {
@@ -90,6 +97,5 @@ app.get("/messages", (req, res) => {
 
   res.status(400).send("All fields are required!");
 });
-
 
 app.listen(5000, () => console.log(`Sever running at port 5000!`));
