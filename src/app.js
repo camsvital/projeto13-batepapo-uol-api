@@ -1,28 +1,95 @@
 import express from "express";
 import cors from "cors";
-import { MongoClient, ObjectId } from "mongodb";
-import dotenv from dotenv;
+import dayjs from "dayjs";
+import { MongoClient } from "mongodb";
+import joi from "joi";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
-app.listen( PORT, () => console.log(`Sever running at port ${PORT}`))
+const participantsJoi = joi.object({
+  name: joi.string().min(1).required(),
+});
+
+const time = dayjs().format("HH/mm/ss");
 
 const mongoClient = new MongoClient(process.env.DATABASE_URL);
-mongoClient.connect()
- .then(() => db = mongoClient.db())
- .catch((err) => console.log(err.message));
 
+try {
+  await mongoClient.connect();
+  console.log("Conectado");
+} catch (err) {
+  console.log(err);
+}
 
-app.post("/participants", (req, res) => {
-    const { name } = req.body;
-  
-    if (name === "xxx") {
-      users.push({ name: name });
-      res.status(201).send("OK");
-      return;
+const db = mongoClient.db("batepapouol");
+const participantsCollection = db.collection("participants");
+const messagesCollection = db.collection("messages")
+
+app.post("/participants", async (req, res) => {
+  const { name } = req.body;
+
+  const validation = participantsJoi.validate(name, { abortEarly: false });
+
+  if (validation.error) {
+    const erros = validation.error.details.map((detail) => detail.message);
+    return res.status(422).send(erros);
+  }
+
+  try {
+    const verifyName = await participantsCollection.findOne({
+      name: name,
+    });
+
+    if (verifyName) {
+      return res.status(409).send({});
     }
-    res.status(400).send("Todos os campos são obrigatórios!");
-  });
+
+    await participantsCollection.insertOne({
+      name: name,
+      lastStatus: time,
+    });
+
+    await messagesCollection.insertOne({
+      from: name,
+      to: "Todos",
+      text: "entra na sala...",
+      time,
+    });
+
+    res.status(201).send({});
+  } catch (err) {
+    console.log(err);
+    return res.status(500).send(err);
+  }
+});
+
+
+app.get("/participants", (req, res) => {
+  const { name } = req.body;
+
+  res.status(400).send("All fields are required!");
+});
+
+app.post("/messages", (req, res) => {
+  const { name } = req.body;
+
+  // res.send()
+
+  res.status(400).send("All fields are required!");
+});
+
+app.get("/messages", (req, res) => {
+  const { name } = req.body;
+
+  // res.send()
+
+  res.status(400).send("All fields are required!");
+});
+
+
+app.listen(5000, () => console.log(`Sever running at port 5000!`));
