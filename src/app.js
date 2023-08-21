@@ -70,7 +70,10 @@ app.post("/participants", async (req, res) => {
 
 app.get("/participants", async (req, res) => {
   try {
-    const getParticipants = await db.collection("participants").find().toArray();
+    const getParticipants = await db
+      .collection("participants")
+      .find()
+      .toArray();
 
     if (!getParticipants) {
       return [];
@@ -81,6 +84,42 @@ app.get("/participants", async (req, res) => {
     console.err(err);
     et;
     return res.status(500).send(err.message);
+  }
+});
+
+app.post("/messages", async (req, res) => {
+  const user = req.headers.user;
+
+  const participant = await db
+    .collection("participants")
+    .findOne({ name: user });
+  if (!participant)
+    return res.status(422).send("Esse usuário não existe ou foi desconectado!");
+
+  const messageJoi = Joi.object({
+    to: Joi.string().required(),
+    text: Joi.string().required(),
+    type: Joi.string().valid("message", "private_message").required(),
+  });
+
+  const validation = messageJoi.validate(req.body, { abortEarly: false });
+
+  if (validation.error) {
+    const errors = validation.error.details.map((detail) => detail.message);
+    return res.status(422).send(errors);
+  }
+
+  const message = {
+    from: user,
+    ...req.body,
+    time,
+  };
+
+  try {
+    await db.collection("messages").insertOne(message);
+    res.sendStatus(201);
+  } catch (err) {
+    res.sendStatus(422);
   }
 });
 
