@@ -11,8 +11,6 @@ dotenv.config();
 app.use(cors());
 app.use(express.json());
 
-let user = []
-
 const mongoClient = new MongoClient(process.env.DATABASE_URL);
 try {
   await mongoClient.connect();
@@ -80,6 +78,7 @@ app.get("/participants", async (req, res) => {
 });
 
 app.post("/messages", async (req, res) => {
+  const { to, text, type } = req.body
   const { user } = req.headers
   
   const participant = await db
