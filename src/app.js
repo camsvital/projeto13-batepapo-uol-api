@@ -2,27 +2,20 @@ import express from "express";
 import cors from "cors";
 import dayjs from "dayjs";
 import { MongoClient } from "mongodb";
-import joi from "joi";
+import Joi from "joi";
 import dotenv from "dotenv";
-import { get } from "http";
-
-dotenv.config();
 
 const app = express();
+dotenv.config();
 app.use(cors());
 app.use(express.json());
+const time = dayjs().format("HH:mm:ss");
 
-const participantsJoi = joi.object({
-  name: joi.string().min(1).required(),
+const postMessage = Joi.object({
+  to: Joi.string().min(1).required(),
+  text: Joi.string().min(1).required(),
+  type: Joi.string().valid("message", "private_message").required(),
 });
-
-const postMessage = joi.object({
-  to: joi.string().min(1).required(),
-  text: joi.string().min(1).required(),
-  type: joi.string().valid("message", "private_message").required(),
-});
-
-const time = dayjs().format("HH/mm/ss");
 
 const mongoClient = new MongoClient(process.env.DATABASE_URL);
 
@@ -33,14 +26,16 @@ try {
   console.log(err);
 }
 
-const db = mongoClient.db("batepapouol");
-const participantsCollection = db.collection("participants");
-const messagesCollection = db.collection("messages");
+const db = mongoClient.db();
 
 app.post("/participants", async (req, res) => {
   const { name } = req.body;
 
-  const validation = participantsJoi.validate(name, { abortEarly: false });
+  const participantsJoi = Joi.object({
+    name: Joi.string().min(1).required(),
+  });
+
+  const validation = participantsJoi.validate(req.body, { abortEarly: false });
 
   if (validation.error) {
     const erros = validation.error.details.map((detail) => detail.message);
@@ -48,27 +43,25 @@ app.post("/participants", async (req, res) => {
   }
 
   try {
-    const verifyName = await participantsCollection.findOne({
-      name: name,
+    const verifyName = await db
+      .collection("participants")
+      .findOne({ name: name });
+
+    if (verifyName) return res.status(409).send({});
+
+    await db.collection("participants").insertOne({
+      name,
+      lastStatus: Date.now(),
     });
 
-    if (verifyName) {
-      return res.status(409).send({});
-    }
-
-    await participantsCollection.insertOne({
-      name: name,
-      lastStatus: time,
-    });
-
-    await messagesCollection.insertOne({
+    await db.collection("messages").insertOne({
       from: name,
       to: "Todos",
       text: "entra na sala...",
       time,
     });
 
-    res.status(201).send({});
+    res.sendStatus(201);
   } catch (err) {
     console.log(err);
     return res.status(500).send(err);
@@ -77,7 +70,7 @@ app.post("/participants", async (req, res) => {
 
 app.get("/participants", async (req, res) => {
   try {
-    const getParticipants = await messagesCollection.find().toArray();
+    const getParticipants = await db.collection("participants").find().toArray();
 
     if (!getParticipants) {
       return [];
@@ -85,30 +78,10 @@ app.get("/participants", async (req, res) => {
 
     return res.status(201).send({ getParticipants });
   } catch (err) {
-    console.err(err);et 
+    console.err(err);
+    et;
     return res.status(500).send(err.message);
   }
-});
-
-app.get("/messages", (req, res) => {
-  const { name } = req.body;
-});
-
-app.post("/messages", (req, res) => {
-  const { userId } = req.headers; 
-  const body = req.body
-
-
-  const validation = participantsJoi.validate(body, { abortEarly: false });
-
-  if (validation.error) {
-    const erros = validation.error.details.map((detail) => detail.message);
-    return res.status(422).send(erros);
-  }
-
-  
-
-  res.status(400).send("All fields are required!");
 });
 
 app.listen(5000, () => console.log(`Sever running at port 5000!`));
