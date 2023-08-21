@@ -16,6 +16,12 @@ const participantsJoi = joi.object({
   name: joi.string().min(1).required(),
 });
 
+const postMessage = joi.object({
+  to: joi.string().min(1).required(),
+  text: joi.string().min(1).required(),
+  type: joi.string().valid("message", "private_message").required(),
+});
+
 const time = dayjs().format("HH/mm/ss");
 
 const mongoClient = new MongoClient(process.env.DATABASE_URL);
@@ -79,21 +85,28 @@ app.get("/participants", async (req, res) => {
 
     return res.status(201).send({ getParticipants });
   } catch (err) {
-    console.err(err);
+    console.err(err);et 
     return res.status(500).send(err.message);
   }
 });
 
-app.post("/messages", (req, res) => {
-  const { name } = req.body;
-
-
-});
-
 app.get("/messages", (req, res) => {
   const { name } = req.body;
+});
 
-  // res.send()
+app.post("/messages", (req, res) => {
+  const { userId } = req.headers; 
+  const body = req.body
+
+
+  const validation = participantsJoi.validate(body, { abortEarly: false });
+
+  if (validation.error) {
+    const erros = validation.error.details.map((detail) => detail.message);
+    return res.status(422).send(erros);
+  }
+
+  
 
   res.status(400).send("All fields are required!");
 });
