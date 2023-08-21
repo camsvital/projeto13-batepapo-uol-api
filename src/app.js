@@ -63,7 +63,6 @@ app.post("/participants", async (req, res) => {
 });
 
 app.get("/participants", async (req, res) => {
-  const { id } = req.params
 
   try {
     const getParticipants = await db
@@ -159,31 +158,25 @@ app.post("/status", async (req, res) => {
   }
 });
 
-setInterval(async () => {
-  const kickUser = Date.now() - 10001
+ssetInterval(deleteAfk, 15000);
 
-  try {
-      const verifyUser = await db.collection("participants").find({ lastStatus: {$lt: kickUser}}).toArray()
+async function deleteAfk() {
+  const users = await db.collection("participants").find().toArray();
 
-      if (verifyUser.length > 0) {
-          const messages = verifyUser.map(user =>{
-              return{
-                  from: user.name,
-                  to: "Todos",
-                  text: "sai da sala...",
-                  type: "status",
-                  time: time
-              }
-          })
+  users.forEach(async (user) => {
+    if (Date.now() - user.lastStatus > 10000) {
+      await db.collection("participants").deleteOne({ _id: new ObjectId(user._id) });
+      await db.collection("messages").insertOne({
+        from: user.name,
+        to: "Todos",
+        text: "sai da sala...",
+        type: "status",
+        time: time
+      });
+    }
+  });
+}
 
-          await db.collection("messages").insertMany(messages)
-          await db.collection("participants").deleteMany({ lastStatus: {$lt: kickUser}})
-      }
-  } catch (err) {
-      res.status(500).send(err.message)
-  } 
-
-}, 15000)
 
 
 const PORT = 5000
