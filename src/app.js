@@ -6,27 +6,23 @@ import Joi from "joi";
 import dotenv from "dotenv";
 
 const app = express();
+
 dotenv.config();
 app.use(cors());
 app.use(express.json());
-const time = dayjs().format("HH:mm:ss");
+
+let user = []
 
 const mongoClient = new MongoClient(process.env.DATABASE_URL);
-
-const postMessage = Joi.object({
-  to: Joi.string().min(1).required(),
-  text: Joi.string().min(1).required(),
-  type: Joi.string().valid("message", "private_message").required(),
-});
-
 try {
   await mongoClient.connect();
   console.log("Conectado");
 } catch (err) {
   console.log(err);
 }
-
 const db = mongoClient.db();
+
+const time = dayjs().format("HH:mm:ss");
 
 app.post("/participants", async (req, res) => {
   const { name } = req.body;
@@ -47,7 +43,7 @@ app.post("/participants", async (req, res) => {
       .collection("participants")
       .findOne({ name: name });
 
-    if (verifyName) return res.status(409).send({});
+    if (verifyName) return res.status(409).send("Essa pessoa já existe!");
 
     await db.collection("participants").insertOne({
       name,
@@ -58,38 +54,34 @@ app.post("/participants", async (req, res) => {
       from: name,
       to: "Todos",
       text: "entra na sala...",
-      time,
+      type: "status",
+      time: time,
     });
 
     res.sendStatus(201);
   } catch (err) {
-    console.log(err);
     return res.status(500).send(err);
   }
 });
 
 app.get("/participants", async (req, res) => {
+  const { id } = req.params
+
   try {
     const getParticipants = await db
       .collection("participants")
       .find()
       .toArray();
 
-    if (!getParticipants) {
-      return [];
-    }
-
-    return res.status(201).send({ getParticipants });
+    return res.status(200).send({ getParticipants });
   } catch (err) {
-    console.err(err);
-    et;
     return res.status(500).send(err.message);
   }
 });
 
 app.post("/messages", async (req, res) => {
-  const user = req.headers.user;
-
+  const { user } = req.headers
+  
   const participant = await db
     .collection("participants")
     .findOne({ name: user });
@@ -112,7 +104,7 @@ app.post("/messages", async (req, res) => {
   const message = {
     from: user,
     ...req.body,
-    time,
+    time: time
   };
 
   try {
@@ -148,4 +140,52 @@ app.get("/messages", async (req, res) => {
   }
 });
 
-app.listen(5000, () => console.log(`Sever running at port 5000!`));
+app.post("/status", async (req, res) => {
+  const { user } = req.headers;
+
+  if (!user) return res.sendStatus(404);
+
+  const participant = await db
+    .collection("participants")
+    .findOne({ name: user });
+  if (!participant) return res.sendStatus(404);
+
+  try {
+    await db
+      .collection("participants")
+      .updateOne({ name: user }, { $set: { lastStatus: Date.now() } });
+    res.sendStatus(200);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+});
+
+setInterval(async () => {
+  const kickUser = Date.now() - 10001
+
+  try {
+      const verifyUser = await db.collection("participants").find({ lastStatus: {$lt: kickUser}}).toArray()
+
+      if (verifyUser.length > 0) {
+          const messages = verifyUser.map(user =>{
+              return{
+                  from: user.name,
+                  to: "Todos",
+                  text: "sai da sala...",
+                  type: "status",
+                  time: time
+              }
+          })
+
+          await db.collection("messages").insertMany(messages)
+          await db.collection("participants").deleteMany({ lastStatus: {$lt: kickUser}})
+      }
+  } catch (err) {
+      res.status(500).send(err.message)
+  } 
+
+}, 15000)
+
+
+const PORT = 5000
+app.listen(PORT, () => console.log(`Sever running at port ${5000}!`));
