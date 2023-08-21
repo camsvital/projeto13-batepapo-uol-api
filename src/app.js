@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dayjs from "dayjs";
-import { MongoClient } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 import Joi from "joi";
 import dotenv from "dotenv";
 
@@ -11,13 +11,13 @@ app.use(cors());
 app.use(express.json());
 const time = dayjs().format("HH:mm:ss");
 
+const mongoClient = new MongoClient(process.env.DATABASE_URL);
+
 const postMessage = Joi.object({
   to: Joi.string().min(1).required(),
   text: Joi.string().min(1).required(),
   type: Joi.string().valid("message", "private_message").required(),
 });
-
-const mongoClient = new MongoClient(process.env.DATABASE_URL);
 
 try {
   await mongoClient.connect();
@@ -120,6 +120,31 @@ app.post("/messages", async (req, res) => {
     res.sendStatus(201);
   } catch (err) {
     res.sendStatus(422);
+  }
+});
+
+app.get("/messages", async (req, res) => {
+  const { limit } = req.query;
+  const { user } = req.headers;
+
+  try {
+    const showMessages = await db
+      .collection("messages")
+      .find({ $or: [{ from: user }, { to: { $in: ["Todos", user] } }] })
+      .toArray();
+
+    if (limit) {
+      const limitedJoi = Joi.number().min(1);
+      const { error } = limitedJoi.validate(limit);
+      if (error) {
+        return res.status(422).send(error.message);
+      }
+      return res.send(showMessages.slice(-limit));
+    }
+
+    res.send(showMessages);
+  } catch (error) {
+    res.status(500).send(error.message);
   }
 });
 
