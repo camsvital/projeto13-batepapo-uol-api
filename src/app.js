@@ -158,7 +158,7 @@ app.post("/status", async (req, res) => {
   }
 });
 
-ssetInterval(deleteAfk, 15000);
+setInterval(deleteAfk, 15000);
 
 async function deleteAfk() {
   const users = await db.collection("participants").find().toArray();
@@ -177,7 +177,5 @@ async function deleteAfk() {
   });
 }
 
-
-
 const PORT = 5000
-app.listen(PORT, () => console.log(`Sever running at port ${5000}!`));
+app.listen(PORT, () => console.log(`Sever running at port ${PORT}!`));
